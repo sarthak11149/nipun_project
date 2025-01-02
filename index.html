@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Voting System</title>
+  <link rel="stylesheet" href="/static/index.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="\static\js\script.js"></script>
+
+</head>
+<body>
+  <!-- Login Selection Page -->
+  <div class="container active" id="login-selection">
+    <h2>Login</h2>
+    <div>
+      <button onclick="navigateTo('voter-login')">Login as Voter</button>
+      <button onclick="navigateTo('officer-login')">Login as Officer</button>
+    </div>
+  </div>
+
+  <!-- Voter Login -->
+<div class="container" id="voter-login">
+  <h2>Voter Login</h2>
+  <form id="voter-login-form">
+    <input type="text" id="voterLoginId" placeholder="Voter ID">
+    <div style="position: relative;">
+      <input type="password" id="voterPassword" placeholder="Password" >
+      <span onclick="togglePasswordVisibility('voterPassword', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+        <i class="fas fa-eye" id="voterPasswordIcon"></i>
+      </span>
+    </div>
+    <button type="button" onclick="validateVoterLogin()">Login</button>
+  </form>
+  <div>
+    <a href="#" onclick="navigateTo('registration')" style="color: antiquewhite;">Not Registered?</a>
+  </div>
+  <button onclick="navigateTo('login-selection')">Go Back</button>
+</div>
+
+<!-- Officer Login -->
+<div class="container" id="officer-login">
+  <h2>Officer Login</h2>
+  <form id="officer-login-form">
+    <input type="text" id="officerId" placeholder="Officer ID">
+    <div style="position: relative;">
+      <input type="password" id="officerPassword" placeholder="Password" >
+      <span onclick="togglePasswordVisibility('officerPassword', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+        <i class="fas fa-eye" id="officerPasswordIcon"></i>
+      </span>
+    </div>
+    <button type="button" onclick="validateOfficerLogin()">Login</button>
+  </form>
+  <button onclick="navigateTo('login-selection')">Go Back</button>
+</div>
+
+
+  <!-- Registration Form -->
+  <div class="container" id="registration">
+    <h2>Register to Vote</h2>
+    <form id="register-form">
+      <input type="text" id="name" placeholder="Full Name" required>
+      <div>
+        <input type="text" id="mobile" placeholder="Mobile Number" required>
+        <button type="button" id="generate-otp-btn" onclick="generateOtp()">Generate OTP</button>
+      </div>
+      <div id="otp-section" style="display: none;">
+        <input type="text" id="otp" placeholder="Enter OTP">
+        <button type="button" onclick="validateOtp()">Validate OTP</button>
+        <p id="otp-timer"></p>
+      </div>
+      <input type="text" id="aadhaar" placeholder="Aadhaar Number" required>
+      <input type="text" id="voterId" placeholder="Voter ID" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <input type="text" id="constituency" placeholder="Constituency" required>
+      <button type="submit" id="register-button" disabled onclick="registerUser(event); return false;">Register</button>
+    </form>
+    <button onclick="navigateTo('voter-login')">Go Back</button>
+  </div>
+
+  <!-- Voter Options -->
+  <div class="container" id="voter-options">
+    <div class="logout">
+      <button onclick="navigateTo('login-selection')">Logout</button>
+    </div>
+    <h2>Vote for Your Candidate</h2>
+    <p id="vote-message" style="color: red;"></p>
+    <ul class="candidate-list">
+      <li id="partyX" onclick="vote('Party X')">Candidate A - Party X</li>
+      <li id="partyY" onclick="vote('Party Y')">Candidate B - Party Y</li>
+      <li id="partyZ" onclick="vote('Party Z')">Candidate C - Party Z</li>
+    </ul>
+    <button id="nota" onclick="vote('NOTA')">Vote NOTA</button>
+  </div>
+
+  <!-- Officer Dashboard -->
+  <div class="container" id="officer-dashboard">
+    <div class="logout">
+      <button onclick="navigateTo('login-selection')">Logout</button>
+    </div>
+    <h2>Officer Dashboard</h2>
+    <form id="officer-form">
+      <input type="text" id="officerConstituency" placeholder="Enter Constituency" required>
+      <button type="button" onclick="updateDashboardStats()">View Stats</button>
+    </form>
+    <div class="dashboard-stats">
+      <div class="stat">
+        <h3>Registered Voters</h3>
+        <p id="registered-voters">0</p>
+      </div>
+      <div class="stat">
+        <h3>Votes Cast</h3>
+        <p id="votes-cast">0</p>
+      </div>
+      <div class="stat">
+        <h3>Pending Votes</h3>
+        <p id="pending-votes">0</p>
+      </div>
+    </div>
+
+    <!-- Real-Time Pie Chart -->
+    <div class="stat">
+      <h3 id="graph-heading">Votes by Party</h3>
+      <canvas id="partyVotesChart" width="400" height="200" style="background-color: transparent;"></canvas>
+    </div>
+</div>
+
+<script>
+  let otpGenerated = '';
+  let otpTimer;
+
+  // Navigate to a different page/container
+  function navigateTo(targetId) {
+      document.querySelectorAll('.container').forEach(container => {
+          container.classList.remove('active');
+      });
+      document.getElementById(targetId).classList.add('active');
+  }
+
+  // Generate OTP and show the timer
+  function generateOtp() {
+      otpGenerated = Math.floor(1000 + Math.random() * 9000).toString(); // Random OTP between 1000 and 9999
+      alert(`Your OTP is ${otpGenerated}`);
+      document.getElementById('otp-section').style.display = 'block';
+      startOtpTimer();
+  }
+
+  // Start OTP countdown timer
+  function startOtpTimer() {
+      let timeLeft = 20;
+      const timerElement = document.getElementById('otp-timer');
+      document.getElementById('generate-otp-btn').disabled = true;
+
+      otpTimer = setInterval(() => {
+          if (timeLeft <= 0) {
+              clearInterval(otpTimer);
+              timerElement.textContent = '';
+              document.getElementById('generate-otp-btn').disabled = false;
+          } else {
+              timerElement.textContent = `Wait ${timeLeft--} seconds to regenerate OTP.`;
+          }
+      }, 1000);
+  }
+
+  // Validate OTP entered by the user
+  function validateOtp() {
+      const enteredOtp = document.getElementById('otp').value;
+      if (enteredOtp === otpGenerated) {
+          alert('OTP validated successfully!');
+          document.getElementById('register-button').disabled = false;
+      } else {
+          alert('Invalid OTP! Please try again.');
+      }
+  }
+
+  // Validate voter login credentials against Firebase
+  async function validateVoterLogin() {
+    const voterId = document.getElementById("voterLoginId").value.trim();
+    const voterPassword = document.getElementById("voterPassword").value.trim();
+
+    try {
+        const response = await fetch("/api/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ voter_id: voterId, password: voterPassword })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Check if the voter has already cast their vote
+            if (data.hasVoted) {
+                alert("You have already voted.");
+                navigateTo('login-selection'); // Navigate to another page or show message
+            } else {
+                //alert("Login successful! You can cast your vote.");
+                navigateTo('voter-options'); // Redirect to voting page
+            }
+        } else {
+            const error = await response.json();
+            alert(error.detail); // Show error message if credentials are invalid
+        }
+    } catch (err) {
+        console.error("Error:", err);
+        alert("An error occurred while logging in.");
+    }
+  }
+
+  // Disable voting buttons after the user casts a vote
+  function disableVoting() {
+      ['partyX', 'partyY', 'partyZ', 'nota'].forEach(id => {
+          document.getElementById(id).onclick = null;
+      });
+  }
+
+  // Enable voting buttons before casting the vote
+  function enableVoting() {
+      ['partyX', 'partyY', 'partyZ', 'nota'].forEach(id => {
+          document.getElementById(id).onclick = vote;
+      });
+  }
+
+  // Submit vote and update the server with the chosen candidate
+  async function vote(candidate) {
+      const voterId = document.getElementById("voterLoginId").value.trim();
+
+      try {
+          const response = await fetch("/api/vote", {
+              method: "POST",
+              headers: {
+                  "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ voter_id: voterId, candidate: candidate })
+          });
+
+          if (response.ok) {
+              const data = await response.json();
+              alert(`You voted for ${candidate}`);
+              logout(); // Log out after voting
+          } else {
+              const error = await response.json();
+              alert(error.detail); // Show error if vote is not successful
+          }
+      } catch (err) {
+          console.error("Error:", err);
+          alert("An error occurred while casting the vote.");
+      }
+  }
+
+  // Handle user registration
+  async function registerUser(event) {
+      event.preventDefault();
+
+      const user = {
+          name: document.getElementById('name').value,
+          mobile: document.getElementById('mobile').value,
+          aadhaar: document.getElementById('aadhaar').value,
+          voter_id: document.getElementById('voterId').value,
+          password: document.getElementById('password').value,
+          constituency: document.getElementById('constituency').value
+      };
+
+      const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(user)
+      });
+
+      const data = await response.json();
+      alert(data.message);
+      navigateTo('login-selection');
+  }
+
+  // Log the user out and navigate to the initial page
+  function logout() {
+      navigateTo('login-selection');
+  }
+
+  // Password visibility toggle
+  function togglePasswordVisibility(inputId, iconElement) {
+      const passwordInput = document.getElementById(inputId);
+      const icon = iconElement.querySelector("i");
+
+      if (passwordInput.type === "password") {
+          passwordInput.type = "text";
+          icon.classList.remove("fa-eye");
+          icon.classList.add("fa-eye-slash");
+      } else {
+          passwordInput.type = "password";
+          icon.classList.remove("fa-eye-slash");
+          icon.classList.add("fa-eye");
+      }
+  }
+  
+  async function updateDashboardStats() {
+    const constituency = document.getElementById("officerConstituency").value.trim();
+    if (!constituency) {
+        alert("Please enter a constituency.");
+        return;
+    }
+
+    try {
+        // Fetch dashboard stats for the constituency
+        const response = await fetch(`/api/officer-stats?constituency=${encodeURIComponent(constituency)}`);
+        const stats = await response.json();
+        console.log("Stats fetched:", stats);
+        // Display the stats
+        document.getElementById("registered-voters").textContent = stats.registeredVoters;
+        document.getElementById("votes-cast").textContent = stats.votesCast;
+        document.getElementById("pending-votes").textContent = stats.pendingVotes;
+
+        // Update the pie chart with votes by party data
+        updatePieChart(stats.votesByParty);
+
+    } catch (err) {
+        console.error("Error fetching stats:", err);
+        alert("An error occurred while fetching the stats.");
+    }
+}
+
+// Function to update the pie chart with votes by party data
+function updatePieChart(votesByParty) {
+  const ctx = document.getElementById("partyVotesChart").getContext("2d");
+
+  // Ensure votesByParty has valid data
+  if (!votesByParty || Object.keys(votesByParty).length === 0) {
+      console.error("Invalid votesByParty data:", votesByParty);
+      return;  // Return early if data is invalid
+  }
+
+  const data = {
+      labels: Object.keys(votesByParty),
+      datasets: [{
+          data: Object.values(votesByParty),
+          backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
+          hoverBackgroundColor: ['#FF5A5E', '#3E8EAE', '#FFB24D', '#4CB7B7']
+      }]
+  };
+
+  // Debugging: Log current chart object
+  console.log("Current chart object:", window.partyVotesChart);
+
+  // Check if the chart already exists and update it, else create a new chart
+  if (window.partyVotesChart instanceof Chart) {
+      // If the chart exists, update it
+      window.partyVotesChart.data = data;
+      window.partyVotesChart.update();
+      console.log("Chart updated successfully.");
+  } else {
+      // If the chart doesn't exist, create a new one
+      console.log("Creating new chart...");
+      window.partyVotesChart = new Chart(ctx, {
+          type: 'pie',
+          data: data,
+          options: {
+              responsive: true,
+              plugins: {
+                  legend: {
+                      position: 'top',
+                      labels: {
+                        font: {
+                            //size: 14,  // Adjust font size as needed
+                            weight: 'bold',
+                            family: 'Arial'  // Adjust font family if needed
+                        },
+                        color: '#FFFFFF'  // Set the text color to white
+                    }
+                  },
+                  tooltip: {
+                      callbacks: {
+                          label: function(tooltipItem) {
+                              return tooltipItem.label + ': ' + tooltipItem.raw;
+                          }
+                      }
+                  }
+              }
+          }});
+      console.log("New chart created.");
+  }
+}
+
+
+
+
+</script>
+
+
+</body>
+</html>
